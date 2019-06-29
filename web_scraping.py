@@ -5,72 +5,139 @@ import time
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
-browser = webdriver.Chrome()
+# browser = webdriver.Chrome()
 
-browser.get("https://www.xome.com/auctions/bank-owned")
-time.sleep(1)
+# browser.get("https://www.xome.com/auctions/bank-owned")
+# time.sleep(1)
 
-elem = browser.find_element_by_tag_name("body")
+# elem = browser.find_element_by_tag_name("body")
 
-no_of_pagedowns = 15
+# def scroll():
+#     scroll_delay = 15
+#     last_height = browser.execute_script("return document.body.scrollHeight")
 
-while no_of_pagedowns:
-    elem.send_keys(Keys.PAGE_DOWN)
-    time.sleep(0.2)
-    no_of_pagedowns-=1
+#     while True:
+#         # Action scroll down
+#         # elem.send_keys(Keys.END)
+#         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+#         time.sleep(scroll_delay)
+#         new_height = browser.execute_script("return document.body.scrollHeight")
+            
+#         if new_height == last_height:
+#             break
+#         last_height = new_height
 
-post_elems = browser.find_elements_by_class_name("property-card-photo")
+def cleanString(input):
+    count = 0
+    for letter in str(input):
+        if letter.isalpha() or letter.isdigit():
+            break
+        else:
+            count += 1
+    input = str(input[count:])
+    revinp = reversed(input)
+    count = 0
+    for letter in revinp:
+        if letter.isalpha() or letter.isdigit():
+            break
+        else:
+            count += 1
+    input = input[:-count]
+    return input
 
-print(len(post_elems))
+def getZip(zip):
+    reversedzip = reversed(zip)    
+    count = 0
+    for letter in reversedzip:
+        if letter.isdigit():
+            count += 1
+        else:
+            break    
+    zip = zip[-count:]
+    zip = re.sub("\D", "", zip)
+    return zip   
+
+# while True:
+#     scroll()
+#     try:
+#         link = browser.find_element_by_link_text('Click here')
+#         browser.implicitly_wait(5)
+#         link.click()
+#     except:
+#         break
+
+# post_elems = browser.find_elements_by_class_name("property-card-photo")
+
+# print(len(post_elems))
 #for post in post_elems:
 #    print(post.text)
 
 #############################################
 
-# from requests_html import HTMLSession
+from requests_html import HTMLSession 
+# create an HTML Session object
+session = HTMLSession()
+# Use the object above to connect to needed webpage
+resp = session.get("https://www.xome.com/auctions/236-Fairview-Cr-Xenia-OH-45385-312842139")
+# Run JavaScript code on webpage
+resp.html.render(timeout=480)
 
-# import HTMLSession from requests_html
-# from requests_html import HTMLSession
- 
-# # create an HTML Session object
-# session = HTMLSession()
+import csv
+import sqlite3
+import re
 
-# # Use the object above to connect to needed webpage
-# resp = session.get("https://www.xome.com/auctions/bank-owned")
- 
-# # Run JavaScript code on webpage
-# resp.html.render(timeout=30)
+listing = BeautifulSoup(resp.html.html, 'html.parser')
 
-# import csv
-# import sqlite3
+with open('properties.csv', 'w') as csv_file:
+    csv_writer = writer(csv_file)
+    headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
+        'Reserve Met', 'Resreve Price', 'Property Type', 'Beds', 'Square Footage', 'Pictures'
+        'Property Id', 'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Info',
+        'Event Name', 'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
+        'Price History', 'Tax History', 'Current Market Trends', 'Rental Info']
 
-# listings = BeautifulSoup(resp.html.html, 'html.parser')
-# results = listings.find(class_="property-card-photo")
-# # listings = results.find_all(class_="col-md-4 col-sm-6 col-xs-12 sr-property-card-holder")
+    address = listing.find(class_="address-line-1").get_text()
 
-# # print(resp.status_code)
-# print(len(results))
-#for result in results:
-#    print(listing)
+    city = listing.find(id="crumb5").get_text()
+    
+    zip = getZip(str(listing.find(class_="property-address").get_text().replace('\n', '').replace(' ', '')))
 
- #with open('properties.csv', 'w') as csv_file:
-    # csv_writer = writer(csv_file)
-    # headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
-    # 'Reserve Met', 'Resreve Price', 'Property Type', 'Beds', 'Square Footage', 'Pictures'
-    #  'Property Id', 'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Info',
-    #   'Event Name', 'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
-    #    'Price History', 'Tax History', 'Current Market Trends', 'Rental Info']
+    state = listing.find(id="crumb4").get_text()
+    #state = state.find("a").get_text()
 
-    # address = listing.find(class_="address-line-1").get_text()
-    # city = listing.find(id="crumb4")
-    # city = city.find("a").get_text()
-    # csv_writer.writerow(headers)
-    # csv_writer.writerow([address, city])
+    strtbid = listing.find(class_="bid-amount").get_text()
 
-    # for property in properties:
-    #    address = property.find(itemprop='streetAddress').get_text().replace('\n', '').replace('\t', '').replace(' ', '')
-    #    csv_writer.writerow([address, price])
+    try:
+        reservemet = listing.find(class_="event-status failed reverve-not-met")
+        reservemet = "No"
+    except:
+        reservemet = "Yes"
+
+    info = listing.find_all(class_= "first-field bolded")
+    proptype = cleanString(info[0].get_text().replace('\n', ''))
+    beds = cleanString(info[1].get_text().replace('\n', ''))
+    sqft = cleanString(info[3].get_text().replace('\n', ''))
+    propid = cleanString(info[4].get_text().replace('\n', ''))
+
+    # TODO: pictures
+    # TODO: url
+
+    strttime = listing.find(class_= "event-dates").get_text().replace('\n', '')
+
+    try:
+        paytype = listing.find(class_= "cash-only-label")
+        paytype = "Cash Only"
+    except:
+        paytype = "Eligible For Financing"
+
+    csv_writer.writerow(headers)
+    csv_writer.writerow([address, city, zip, state, strtbid, 
+        reservemet, proptype, beds, sqft, propid, strttime, paytype])
 
 # Tansfer to SQL db
 # con = sqlite3.connect("PropertyData.db")
