@@ -81,34 +81,41 @@ def getZip(zip):
 #############################################
 
 class ListingInfo:
-    propId = "not found"
-    propType = "not found"
-    county = "not found"
-    lotSize = "not found"
-    yearBuilt = "not found"
-    mlsNum = "not found"
-    beds = "not found"
-    baths = "not found"
-    sqFt = "not found"
-    stories = "not found"
+    propId = "n/a"
+    propType = "n/a"
+    county = "n/a"
+    lotSize = "n/a"
+    yearBuilt = "n/a"
+    mlsNum = "n/a"
+    beds = "n/a"
+    baths = "n/a"
+    sqFt = "n/a"
+    stories = "n/a"
 
-    def __init__(self, propId, mlsNum, propType, beds, county, baths, lotSize, sqFt, yearBuilt, stories):
-        self.propId = propId
-        self.propType = propType
-        self.county = county
-        self.lotSize = lotSize
-        self.yearBuilt = yearBuilt
-        self.mlsNum = mlsNum
-        self.beds = beds
-        self.baths = baths
-        self.sqFt = sqFt
-        self.stories = stories
+    def __init__(self, info):
+        if len(info) == 10: #Single Family
+            self.propId = cleanString(info[0].get_text())
+            self.propType = cleanString(info[2].get_text())
+            self.county = cleanString(info[4].get_text())
+            self.lotSize = cleanString(info[6].get_text())
+            self.yearBuilt = cleanString(info[8].get_text())
+            self.mlsNum = cleanString(info[1].get_text())
+            self.beds = cleanString(info[3].get_text())
+            self.baths = cleanString(info[5].get_text())
+            self.sqFt = cleanString(info[7].get_text())
+            self.stories = cleanString(info[9].get_text())
+        elif len(info) == 5: #Land Property
+            self.propId = cleanString(info[0].get_text())
+            self.propType = cleanString(info[1].get_text())
+            self.county = cleanString(info[2].get_text())
+            self.lotSize = cleanString(info[3].get_text())
+            self.yearBuilt = cleanString(info[4].get_text())
 
 from requests_html import HTMLSession 
 # create an HTML Session object
 session = HTMLSession()
 # Use the object above to connect to needed webpage
-resp = session.get("https://www.xome.com/auctions/18-7855-Ewalina-Road-Mountain-View-HI-96771-303717185")
+resp = session.get("https://www.xome.com/auctions/1026-Maple-Pekin-IL-61554-312026989")
 # Run JavaScript code on webpage
 resp.html.render(timeout=480)
 
@@ -147,11 +154,7 @@ with open('properties.csv', 'w') as csv_file:
         reservemet = "Yes"
 
     info = listing.find_all(class_= "listing-value")
-    listingInfoObj = ListingInfo(cleanString(info[0].get_text()), cleanString(info[1].get_text()), 
-    cleanString(info[2].get_text()), cleanString(info[3].get_text()),
-    cleanString(info[4].get_text()), cleanString(info[5].get_text()),
-    cleanString(info[6].get_text()), cleanString(info[7].get_text()),
-    cleanString(info[8].get_text()), cleanString(info[9].get_text()))
+    listingInfoObj = ListingInfo(info)
     
     # TODO: pictures
     # TODO: url
@@ -226,6 +229,86 @@ with open('properties.csv', 'w') as csv_file:
     except:
         priceHistory: "No price history"
 
+    try:
+        taxHistory = []
+        taxHeaders = []
+
+        taxContainer = listing.find(class_ = 'container-school')
+        rowHeaders = taxContainer.find(class_ = 'row row-header')
+        taxHeadersTemp = rowHeaders.find_all(class_ = 'span3 col-sm-3 col-xs-3')
+        count = 0
+        for header in rowHeaders.find_all(class_ = 'span2 col-sm-2 col-xs-2'):
+            taxHeaders.append(header.get_text())
+            if count < len(taxHeadersTemp):
+                taxHeaders.append(taxHeadersTemp[count].get_text())
+                count += 1   
+        rowData = taxContainer.find(id = 'tax-goes-here')
+        for row in rowData.find_all(class_ = 'row row-data'):
+            headerCount = 0
+            dataCount = 0
+            dataString = "n/a"
+            dataTemp = row.find_all(class_ = 'span3 col-sm-3')
+            for data in row.find_all(class_ = 'span2 col-sm-2'):
+                dataString += priceHeaders[headerCount] + ": " + cleanString(data.get_text())
+                count += 1
+                try:
+                    if headerCount < len(dataTemp):
+                        dataString += priceHeaders[headerCount] + ": " + cleanString(dataTemp[dataCount].get_text())
+                        headerCount += 1
+                        dataCount += 1
+                except:
+                    break   
+            taxHistory.append(dataString)
+    except:
+        taxHistory: "No tax history"    
+
+    #List price
+    medianListPrice = listing.find(class_ = 'MedianListPrice-value trend-value').get_text()
+    try:
+        listing.find(class_ = 'MedianListPrice-icon market-trend-up')
+        medianListPrice = medianListPrice + " (trending up)"
+    except: 
+        try:
+            listing.find(class_ = 'MedianListPrice-icon market-trend-down')
+            medianListPrice = medianListPrice + " (trending down)"
+        except:
+            medianListPrice = medianListPrice + " (flat trend)"
+
+    #Sold price
+    medianSoldPrice = listing.find(class_ = 'MedianSoldPrice-value trend-value').get_text()
+    try:
+        listing.find(class_ = 'MedianSoldPrice-icon market-trend-up')
+        medianSoldPrice = medianSoldPrice + " (trending up)"
+    except: 
+        try:
+            listing.find(class_ = 'MedianSoldPrice-icon market-trend-down')
+            medianSoldPrice = medianSoldPrice + " (trending down)"
+        except:
+            medianSoldPrice = medianSoldPrice + " (flat trend)"
+
+    #Days on market
+    daysOnMarketTag = listing.find(class_ = 'DaysOnMarket-value')
+    try:
+        daysOnMarketTag.find(class_ = 'DaysOnMarket-icon market-trend-up')
+        daysOnMarket = daysOnMarketTag.get_text() + " (trending up)"
+    except: 
+        try:
+            daysOnMarketTag.find(class_ = 'DaysOnMarket-icon market-trend-down')
+            daysOnMarket = daysOnMarketTag.get_text() + " (trending down)"
+        except:
+            daysOnMarket = daysOnMarketTag.get_text() + " (flat trend)"
+
+    #Sales List Price
+    salesListPrice = listing.find(class_ = 'SalesListPrice-value trend-value').get_text()
+    try:
+        listing.find(class_ = 'SalesListPrice-icon market-trend-up')
+        salesListPrice = salesListPrice + " (trending up)"
+    except: 
+        try:
+            listing.find(class_ = 'SalesListPrice-icon market-trend-down')
+            salesListPrice = salesListPrice + " (trending down)"
+        except:
+            salesListPrice = salesListPrice + " (flat trend)"        
 
     csv_writer.writerow(headers)
     csv_writer.writerow([address, city, zip, state, strtBid, 
@@ -235,7 +318,8 @@ with open('properties.csv', 'w') as csv_file:
         listingInfoObj.sqFt, listingInfoObj.stories, strtTime, 
         payType, agentName, agentLicNum, agentPhoneNum, 
         agentBrokerage, agentBrokerageLic, agentManagingBroker, 
-        agentManagingBrokerLic, propertyDetials, auctionDisclaimers])
+        agentManagingBrokerLic, propertyDetials, auctionDisclaimers, priceHistory,
+        taxHistory, medianListPrice])
 
 # Tansfer to SQL db
 # con = sqlite3.connect("PropertyData.db")
