@@ -10,27 +10,52 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# browser = webdriver.Chrome()
+from requests_html import HTMLSession 
+# create an HTML Session object
+session = HTMLSession()
+# Use the object above to connect to needed webpage
+resp = session.get("https://www.xome.com/auctions/bank-owned")
+# Run JavaScript code on webpage
+resp.html.render(timeout=480)
 
-# browser.get("https://www.xome.com/auctions/bank-owned")
-# time.sleep(1)
+import csv
+import sqlite3
+import re
+import json
 
-# elem = browser.find_element_by_tag_name("body")
+homePage = BeautifulSoup(resp.html.html, 'html.parser')
+time.sleep(1)
+pg = 1
+totalPgs = float(homePage.find(class_ = "results-counter-number").get_text().replace(',', '')) / 20 + 1
+listing_links = []
+browser = webdriver.Chrome()
+while(pg < totalPgs):
+    browser.get("https://www.xome.com/auctions/bank-owned?page=" + str(pg))
+    time.sleep(2)
+    listings = browser.find_elements_by_xpath("//a[@class='property-detail-link']")
+    
+    if len(listings) < 20:
+        print("oops")
 
-def scroll():
-    scroll_delay = 15
-    last_height = browser.execute_script("return document.body.scrollHeight")
+    for listing in listings:
+        listing_links.append(listing.get_attribute('href'))
 
-    while True:
-        # Action scroll down
-        # elem.send_keys(Keys.END)
-        browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(scroll_delay)
-        new_height = browser.execute_script("return document.body.scrollHeight")
+    pg += 1
+
+# def scroll():
+#     scroll_delay = 1
+#     last_height = browser.execute_script("return document.body.scrollHeight")
+
+#     while True:
+#         # Action scroll down
+#         # elem.send_keys(Keys.END)
+#         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+#         time.sleep(scroll_delay)
+#         new_height = browser.execute_script("return document.body.scrollHeight")
             
-        if new_height == last_height:
-            break
-        last_height = new_height
+#         if new_height == last_height:
+#             break
+#         last_height = new_height
 
 def cleanString(input):
     count = 0
@@ -72,12 +97,6 @@ def getZip(zip):
 #     except:
 #         break
 
-# post_elems = browser.find_elements_by_class_name("property-card-photo")
-
-# print(len(post_elems))
-# for post in post_elems:
-#    print(post.text)
-
 #############################################
 
 class ListingInfo:
@@ -111,17 +130,30 @@ class ListingInfo:
             self.lotSize = cleanString(info[3].get_text())
             self.yearBuilt = cleanString(info[4].get_text())
 
-from requests_html import HTMLSession 
-# create an HTML Session object
-session = HTMLSession()
+with open('properties.csv', 'w') as csv_file:
+    csv_writer = writer(csv_file)
+    headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
+        'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
+        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
+        'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
+        'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
+        'Managing Broker Name', 'Managing Broker License', 'Event Name',
+        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
+        'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
+        'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent']
+    csv_writer.writerow(headers)
+                
+
+
 # Use the object above to connect to needed webpage
-resp = session.get("https://www.xome.com/auctions/1026-Maple-Pekin-IL-61554-312026989")
+resp = session.get("https://www.xome.com/auctions/222-28-Edmore-Ave-Queens-Village-NY-11428-313115854")
 # Run JavaScript code on webpage
 resp.html.render(timeout=480)
 
 import csv
 import sqlite3
 import re
+import json
 
 listing = BeautifulSoup(resp.html.html, 'html.parser')
 
@@ -129,12 +161,13 @@ with open('properties.csv', 'w') as csv_file:
     csv_writer = writer(csv_file)
     headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
         'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
-        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures'
+        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
         'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
         'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
-        'Managing Broker Name', 'Managing Broker License'
-        'Event Name', 'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
-        'Price History', 'Tax History', 'Current Market Trends', 'Rental Info']
+        'Managing Broker Name', 'Managing Broker License', 'Event Name',
+        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
+        'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
+        'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent']
 
     address = listing.find(class_="address-line-1").get_text()
 
@@ -157,6 +190,12 @@ with open('properties.csv', 'w') as csv_file:
     listingInfoObj = ListingInfo(info)
     
     # TODO: pictures
+    pictureURLs = []
+    pictureSlides = listing.find(class_ = "slides")
+    pictures = pictureSlides.find_all('img')
+    for picture in pictures:
+        pictureURLs.append(picture['src'])
+    
     # TODO: url
 
     strtTime = listing.find(class_= "event-dates").get_text().replace('\n', '')
@@ -172,32 +211,42 @@ with open('properties.csv', 'w') as csv_file:
             payType = "Payment Type Not Recognized"
 
     #Listing Agent Info: Name, License #, Phone, etc
+    agentName = "n/a"
+    agentLicNum ="n/a"
+    agentPhoneNum = "n/a"
+    agentBrokerage = "n/a"
+    agentBrokerageLic = "n/a"
+    agentManagingBroker = "n/a"
+    agentManagingBrokerLic = "n/a"
+    agentEmail = "n/a"
+
     agentTable = listing.find_all('table', attrs={'class':'pd-table table-striped'})
-    agentBody = agentTable[0].find('tbody')
+    if len(agentTable) > 0:
+        agentBody = agentTable[0].find('tbody')
 
-    rows = agentBody.find_all('tr')
-    cols = rows[0].find_all('td')
-    agentName = cols[1].text.strip()
+        rows = agentBody.find_all('tr')
+        cols = rows[0].find_all('td')
+        agentName = cols[1].text.strip()
 
-    cols = rows[1].find_all('td')
-    agentLicNum = cols[1].text.strip()
+        cols = rows[1].find_all('td')
+        agentLicNum = cols[1].text.strip()
 
-    cols = rows[2].find_all('td')
-    agentPhoneNum = cols[1].text.strip()
+        cols = rows[2].find_all('td')
+        agentPhoneNum = cols[1].text.strip()
 
-    cols = rows[3].find_all('td')
-    agentBrokerage = cols[1].text.strip()
+        cols = rows[3].find_all('td')
+        agentBrokerage = cols[1].text.strip()
 
-    cols = rows[4].find_all('td')
-    agentBrokerageLic = cols[1].text.strip()
+        cols = rows[4].find_all('td')
+        agentBrokerageLic = cols[1].text.strip()
 
-    cols = rows[5].find_all('td')
-    agentManagingBroker = cols[1].text.strip()
+        cols = rows[5].find_all('td')
+        agentManagingBroker = cols[1].text.strip()
 
-    cols = rows[6].find_all('td')
-    agentManagingBrokerLic = cols[1].text.strip()
+        cols = rows[6].find_all('td')
+        agentManagingBrokerLic = cols[1].text.strip()
 
-    agentEmail = listing.find(class_="xmicon icon-email").get_text()
+        agentEmail = listing.find(class_="xmicon icon-email").get_text()
 
     eventName = listing.find(id = "eventName")
 
@@ -210,6 +259,9 @@ with open('properties.csv', 'w') as csv_file:
     for li in ulAuctDisclaimers.find_all('li'):
         auctionDisclaimers.append(li.get_text())
 
+    #TODO: fix price and tax history
+    # So looks like the Handlebars Template is not being loaded when the page is so its not happy
+    # Also could be any number of things so we'll see
     try:
         priceHistory = []
         priceHeaders = []
@@ -229,15 +281,20 @@ with open('properties.csv', 'w') as csv_file:
     except:
         priceHistory: "No price history"
 
+
+    # browser = webdriver.Chrome()
+    # browser.get("https://www.xome.com/auctions/222-28-Edmore-Ave-Queens-Village-NY-11428-313115854")
+    # time.sleep(1)
+    
     try:
         taxHistory = []
         taxHeaders = []
 
-        taxContainer = listing.find(class_ = 'container-school')
-        rowHeaders = taxContainer.find(class_ = 'row row-header')
-        taxHeadersTemp = rowHeaders.find_all(class_ = 'span3 col-sm-3 col-xs-3')
+        taxContainer = browser.find_element_by_class_name('container-school')
+        rowHeaders = browser.find_element_by_class_name('row row-header')
+        taxHeadersTemp = browser.find_element_by_class_name('span3 col-sm-3 col-xs-3')
         count = 0
-        for header in rowHeaders.find_all(class_ = 'span2 col-sm-2 col-xs-2'):
+        for header in rowHeaders.find_elements_by_class_name('span2 col-sm-2 col-xs-2'):
             taxHeaders.append(header.get_text())
             if count < len(taxHeadersTemp):
                 taxHeaders.append(taxHeadersTemp[count].get_text())
@@ -260,66 +317,78 @@ with open('properties.csv', 'w') as csv_file:
                     break   
             taxHistory.append(dataString)
     except:
-        taxHistory: "No tax history"    
+        taxHistory: "No tax history"
+
+    
+    #TODO: Fix Market trends
+    # Beleive it to be a script problem
+    # It has worked randomly but almost always doesnt work
 
     #List price
     medianListPrice = listing.find(class_ = 'MedianListPrice-value trend-value').get_text()
-    try:
-        listing.find(class_ = 'MedianListPrice-icon market-trend-up')
+    if listing.find(class_ = 'MedianListPrice-icon market-trend-up') != None:
         medianListPrice = medianListPrice + " (trending up)"
-    except: 
-        try:
-            listing.find(class_ = 'MedianListPrice-icon market-trend-down')
-            medianListPrice = medianListPrice + " (trending down)"
-        except:
-            medianListPrice = medianListPrice + " (flat trend)"
+    elif listing.find(class_ = 'MedianListPrice-icon market-trend-down') != None:
+        medianListPrice = medianListPrice + " (trending down)"
+    else:
+        medianListPrice = medianListPrice + " (flat trend)"
 
     #Sold price
     medianSoldPrice = listing.find(class_ = 'MedianSoldPrice-value trend-value').get_text()
-    try:
-        listing.find(class_ = 'MedianSoldPrice-icon market-trend-up')
+    if listing.find(class_ = 'MedianSoldPrice-icon market-trend-up') != None:
         medianSoldPrice = medianSoldPrice + " (trending up)"
-    except: 
-        try:
-            listing.find(class_ = 'MedianSoldPrice-icon market-trend-down')
-            medianSoldPrice = medianSoldPrice + " (trending down)"
-        except:
-            medianSoldPrice = medianSoldPrice + " (flat trend)"
+    elif listing.find(class_ = 'MedianSoldPrice-icon market-trend-down') != None:
+        medianSoldPrice = medianSoldPrice + " (trending down)"
+    else:
+        medianSoldPrice = medianSoldPrice + " (flat trend)"
 
     #Days on market
     daysOnMarketTag = listing.find(class_ = 'DaysOnMarket-value')
-    try:
-        daysOnMarketTag.find(class_ = 'DaysOnMarket-icon market-trend-up')
+    if daysOnMarketTag.find(class_ = 'DaysOnMarket-icon market-trend-up') != None:
         daysOnMarket = daysOnMarketTag.get_text() + " (trending up)"
-    except: 
-        try:
-            daysOnMarketTag.find(class_ = 'DaysOnMarket-icon market-trend-down')
-            daysOnMarket = daysOnMarketTag.get_text() + " (trending down)"
-        except:
-            daysOnMarket = daysOnMarketTag.get_text() + " (flat trend)"
+    elif daysOnMarketTag.find(class_ = 'DaysOnMarket-icon market-trend-down') != None:
+        daysOnMarket = daysOnMarketTag.get_text() + " (trending down)"
+    else:
+        daysOnMarket = daysOnMarketTag.get_text() + " (flat trend)"
 
     #Sales List Price
     salesListPrice = listing.find(class_ = 'SalesListPrice-value trend-value').get_text()
-    try:
-        listing.find(class_ = 'SalesListPrice-icon market-trend-up')
+    if listing.find(class_ = 'SalesListPrice-icon market-trend-up') != None:
         salesListPrice = salesListPrice + " (trending up)"
-    except: 
-        try:
-            listing.find(class_ = 'SalesListPrice-icon market-trend-down')
-            salesListPrice = salesListPrice + " (trending down)"
-        except:
-            salesListPrice = salesListPrice + " (flat trend)"        
+    elif listing.find(class_ = 'SalesListPrice-icon market-trend-down') != None:
+        salesListPrice = salesListPrice + " (trending down)"
+    else:
+         salesListPrice = salesListPrice + " (flat trend)"
 
-    csv_writer.writerow(headers)
+
+    avgHighRent = "n/a"
+    avgLowRent = "n/a"
+    avgMedianRent = "n/a"
+
+    rentInfoTable = listing.find_all('table', attrs={'class':'table-style'})
+    if len(rentInfoTable) > 0:
+        rentInfoBody = rentInfoTable[0].find('tbody')
+
+        rows = rentInfoBody.find_all('tr')
+        cols = rows[0].find_all('td')
+        avgHighRent = cols[1].text.strip()
+
+        cols = rows[1].find_all('td')
+        avgMedianRent = cols[1].text.strip()
+
+        cols = rows[2].find_all('td')
+        avgLowRent = cols[1].text.strip()         
+
     csv_writer.writerow([address, city, zip, state, strtBid, 
         reservemet, listingInfoObj.propId, listingInfoObj.propType, 
         listingInfoObj.county, listingInfoObj.lotSize, listingInfoObj.yearBuilt,
         listingInfoObj.mlsNum, listingInfoObj.beds, listingInfoObj.baths,
-        listingInfoObj.sqFt, listingInfoObj.stories, strtTime, 
+        listingInfoObj.sqFt, listingInfoObj.stories, pictureURLs, strtTime, 
         payType, agentName, agentLicNum, agentPhoneNum, 
         agentBrokerage, agentBrokerageLic, agentManagingBroker, 
         agentManagingBrokerLic, propertyDetials, auctionDisclaimers, priceHistory,
-        taxHistory, medianListPrice])
+        taxHistory, medianListPrice, medianSoldPrice, daysOnMarket, salesListPrice, 
+        avgHighRent, avgLowRent, avgMedianRent])
 
 # Tansfer to SQL db
 # con = sqlite3.connect("PropertyData.db")
