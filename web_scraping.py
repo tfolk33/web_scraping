@@ -2,6 +2,10 @@ from bs4 import BeautifulSoup
 from csv import writer
 
 import time
+import csv
+import sqlite3
+import re
+import json
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -9,53 +13,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-from requests_html import HTMLSession 
-# create an HTML Session object
-session = HTMLSession()
-# Use the object above to connect to needed webpage
-resp = session.get("https://www.xome.com/auctions/bank-owned")
-# Run JavaScript code on webpage
-resp.html.render(timeout=480)
-
-import csv
-import sqlite3
-import re
-import json
-
-homePage = BeautifulSoup(resp.html.html, 'html.parser')
-time.sleep(1)
-pg = 1
-totalPgs = float(homePage.find(class_ = "results-counter-number").get_text().replace(',', '')) / 20 + 1
-listing_links = []
-browser = webdriver.Chrome()
-while(pg < totalPgs):
-    browser.get("https://www.xome.com/auctions/bank-owned?page=" + str(pg))
-    time.sleep(2)
-    listings = browser.find_elements_by_xpath("//a[@class='property-detail-link']")
-    
-    if len(listings) < 20:
-        print("oops")
-
-    for listing in listings:
-        listing_links.append(listing.get_attribute('href'))
-
-    pg += 1
-
-# def scroll():
-#     scroll_delay = 1
-#     last_height = browser.execute_script("return document.body.scrollHeight")
-
-#     while True:
-#         # Action scroll down
-#         # elem.send_keys(Keys.END)
-#         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-#         time.sleep(scroll_delay)
-#         new_height = browser.execute_script("return document.body.scrollHeight")
-            
-#         if new_height == last_height:
-#             break
-#         last_height = new_height
+from requests_html import HTMLSession
 
 def cleanString(input):
     count = 0
@@ -86,89 +44,9 @@ def getZip(zip):
             break    
     zip = zip[-count:]
     zip = re.sub("\D", "", zip)
-    return zip   
+    return zip
 
-# while True:
-#     scroll()
-#     try:
-#         link = browser.find_element_by_link_text('Click here')
-#         browser.implicitly_wait(5)
-#         link.click()
-#     except:
-#         break
-
-#############################################
-
-class ListingInfo:
-    propId = "n/a"
-    propType = "n/a"
-    county = "n/a"
-    lotSize = "n/a"
-    yearBuilt = "n/a"
-    mlsNum = "n/a"
-    beds = "n/a"
-    baths = "n/a"
-    sqFt = "n/a"
-    stories = "n/a"
-
-    def __init__(self, info):
-        if len(info) == 10: #Single Family
-            self.propId = cleanString(info[0].get_text())
-            self.propType = cleanString(info[2].get_text())
-            self.county = cleanString(info[4].get_text())
-            self.lotSize = cleanString(info[6].get_text())
-            self.yearBuilt = cleanString(info[8].get_text())
-            self.mlsNum = cleanString(info[1].get_text())
-            self.beds = cleanString(info[3].get_text())
-            self.baths = cleanString(info[5].get_text())
-            self.sqFt = cleanString(info[7].get_text())
-            self.stories = cleanString(info[9].get_text())
-        elif len(info) == 5: #Land Property
-            self.propId = cleanString(info[0].get_text())
-            self.propType = cleanString(info[1].get_text())
-            self.county = cleanString(info[2].get_text())
-            self.lotSize = cleanString(info[3].get_text())
-            self.yearBuilt = cleanString(info[4].get_text())
-
-with open('properties.csv', 'w') as csv_file:
-    csv_writer = writer(csv_file)
-    headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
-        'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
-        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
-        'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
-        'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
-        'Managing Broker Name', 'Managing Broker License', 'Event Name',
-        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
-        'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
-        'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent']
-    csv_writer.writerow(headers)
-                
-
-
-# Use the object above to connect to needed webpage
-resp = session.get("https://www.xome.com/auctions/222-28-Edmore-Ave-Queens-Village-NY-11428-313115854")
-# Run JavaScript code on webpage
-resp.html.render(timeout=480)
-
-import csv
-import sqlite3
-import re
-import json
-
-listing = BeautifulSoup(resp.html.html, 'html.parser')
-
-with open('properties.csv', 'w') as csv_file:
-    csv_writer = writer(csv_file)
-    headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
-        'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
-        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
-        'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
-        'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
-        'Managing Broker Name', 'Managing Broker License', 'Event Name',
-        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
-        'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
-        'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent']
-
+def getInfo(listing):
     address = listing.find(class_="address-line-1").get_text()
 
     city = listing.find(id="crumb5").get_text()
@@ -378,27 +256,127 @@ with open('properties.csv', 'w') as csv_file:
 
         cols = rows[2].find_all('td')
         avgLowRent = cols[1].text.strip()         
+    with open('properties.csv', 'w') as csv_file:
+        csv_writer.writerow([address, city, zip, state, strtBid, 
+            reservemet, listingInfoObj.propId, listingInfoObj.propType, 
+            listingInfoObj.county, listingInfoObj.lotSize, listingInfoObj.yearBuilt,
+            listingInfoObj.mlsNum, listingInfoObj.beds, listingInfoObj.baths,
+            listingInfoObj.sqFt, listingInfoObj.stories, pictureURLs, strtTime, 
+            payType, agentName, agentLicNum, agentPhoneNum, 
+            agentBrokerage, agentBrokerageLic, agentManagingBroker, 
+            agentManagingBrokerLic, propertyDetials, auctionDisclaimers, priceHistory,
+            taxHistory, medianListPrice, medianSoldPrice, daysOnMarket, salesListPrice, 
+            avgHighRent, avgLowRent, avgMedianRent])
 
-    csv_writer.writerow([address, city, zip, state, strtBid, 
-        reservemet, listingInfoObj.propId, listingInfoObj.propType, 
-        listingInfoObj.county, listingInfoObj.lotSize, listingInfoObj.yearBuilt,
-        listingInfoObj.mlsNum, listingInfoObj.beds, listingInfoObj.baths,
-        listingInfoObj.sqFt, listingInfoObj.stories, pictureURLs, strtTime, 
-        payType, agentName, agentLicNum, agentPhoneNum, 
-        agentBrokerage, agentBrokerageLic, agentManagingBroker, 
-        agentManagingBrokerLic, propertyDetials, auctionDisclaimers, priceHistory,
-        taxHistory, medianListPrice, medianSoldPrice, daysOnMarket, salesListPrice, 
-        avgHighRent, avgLowRent, avgMedianRent])
+####################################################
+
+class ListingInfo:
+    propId = "n/a"
+    propType = "n/a"
+    county = "n/a"
+    lotSize = "n/a"
+    yearBuilt = "n/a"
+    mlsNum = "n/a"
+    beds = "n/a"
+    baths = "n/a"
+    sqFt = "n/a"
+    stories = "n/a"
+
+    def __init__(self, info):
+        if len(info) == 10: #Single Family
+            self.propId = cleanString(info[0].get_text())
+            self.propType = cleanString(info[2].get_text())
+            self.county = cleanString(info[4].get_text())
+            self.lotSize = cleanString(info[6].get_text())
+            self.yearBuilt = cleanString(info[8].get_text())
+            self.mlsNum = cleanString(info[1].get_text())
+            self.beds = cleanString(info[3].get_text())
+            self.baths = cleanString(info[5].get_text())
+            self.sqFt = cleanString(info[7].get_text())
+            self.stories = cleanString(info[9].get_text())
+        elif len(info) == 5: #Land Property
+            self.propId = cleanString(info[0].get_text())
+            self.propType = cleanString(info[1].get_text())
+            self.county = cleanString(info[2].get_text())
+            self.lotSize = cleanString(info[3].get_text())
+            self.yearBuilt = cleanString(info[4].get_text())
+
+#####################################################################
+
+# # create an HTML Session object
+session = HTMLSession()
+# Use the object above to connect to needed webpage
+resp = session.get("https://www.xome.com/auctions/bank-owned")
+# Run JavaScript code on webpage
+resp.html.render(timeout=480)
+
+homePage = BeautifulSoup(resp.html.html, 'html.parser')
+time.sleep(1)
+pg = 1
+totalPgs = float(homePage.find(class_ = "results-counter-number").get_text().replace(',', '')) / 20 + 1
+listing_links = []
+browser = webdriver.Chrome()
+while(pg < totalPgs):
+    browser.get("https://www.xome.com/auctions/bank-owned?page=" + str(pg))
+    time.sleep(2)
+    listings = browser.find_elements_by_xpath("//a[@class='property-detail-link']")
+    
+    if len(listings) < 20:
+        print("oops")
+
+    for listing in listings:
+        listing_links.append(listing.get_attribute('href'))
+
+    pg += 1            
+
+with open('properties.csv', 'w') as csv_file:
+    csv_writer = writer(csv_file)
+    headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
+        'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
+        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
+        'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
+        'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
+        'Managing Broker Name', 'Managing Broker License', 'Event Name',
+        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
+        'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
+        'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent']
+    csv_writer.writerow(headers)
+                
+for listing in listing_links:
+    # Use the object above to connect to needed webpage
+    resp = session.get(listing)
+    # Run JavaScript code on webpage
+    resp.html.render(timeout=480)
+    listingSoup = BeautifulSoup(resp.html.html, 'html.parser')
+
+    getInfo(listingSoup)
 
 # Tansfer to SQL db
 # con = sqlite3.connect("PropertyData.db")
 # cur = con.cursor()
-# cur.execute("CREATE TABLE IF NOT EXISTS Properties (Address, Price);") # use your column names here
+# cur.execute("CREATE TABLE IF NOT EXISTS Properties ('Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
+#        'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
+#        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
+#        'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
+#        'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
+#        'Managing Broker Name', 'Managing Broker License', 'Event Name',
+#        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
+#        'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
+#        'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent');") # use your column names here
 
 # with open('properties.csv','rt') as fin: # `with` statement available in 2.5+
 #     # csv.DictReader uses first line in file for column headings by default
 #     dr = csv.DictReader(fin) # comma is default delimiter
-#     to_db = [(i['Address'], i['Price']) for i in dr]
+#     to_db = [(i['Address'], i['City'], i['Zip Code'], i['State'], i['Starting Bid'], 
+#        i['Reserve Met'], i['Resreve Price'], i['Property Id'], i['Property Type'], i['County'],
+#        i['Lot Size'], i['Year Built'], i['MLS#'], i['Bedrooms'], i['Bathrooms'], i['Square Feet'],
+#        i['Stories'], i['Pictures'], i['URL'], i['Auction Start Time'], i['Payment Type'],
+#        i['Listing Agent Name'], i['Listing Agent License Number'], i['Listing Agent Phone Number'],
+#        i['Listing Agent Brokerage'], i['Listing Agent Brokerage License'], i['Managing Broker Name'],
+#        i['Managing Broker License'], i['Event Name'], i['Event Details'], i['Property Details'], 
+#        i['Listing Information'], i['Auction Disclaimers'], i['Price History'], i['Tax History'],
+#        i['Medan List Price'], i['Median Sold Price'], i['Days On Market'],i['Sales List Price'],
+#        i['Average High Rent'], i['Average Median Rent'], i['Average Low Rent']) for i in dr]
 
 # cur.executemany("INSERT INTO Properties (Address, Price) VALUES (?, ?);", to_db)
 # con.commit()
