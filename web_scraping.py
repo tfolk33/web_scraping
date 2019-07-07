@@ -46,7 +46,7 @@ def getZip(zip):
     zip = re.sub("\D", "", zip)
     return zip
 
-def getInfo(listing):
+def getInfo(listing, csv_writer, url):
     address = listing.find(class_="address-line-1").get_text()
 
     city = listing.find(id="crumb5").get_text()
@@ -59,10 +59,16 @@ def getInfo(listing):
     strtBid = listing.find(class_="bid-amount").get_text()
 
     try:
-        reservemet = listing.find(class_="event-status failed reverve-not-met")
-        reservemet = "No"
+        reserveMet = listing.find(class_="event-status failed reverve-not-met")
+        reserveMet = "No"
     except:
-        reservemet = "Yes"
+        reserveMet = "Yes"
+
+    reservePrice = listing.find(class_ = "reserve-price")
+    if reservePrice != None:
+        reservePrice = reservePrice.get_text()
+    else:
+        reservePrice = "Not Disclosed"
 
     info = listing.find_all(class_= "listing-value")
     listingInfoObj = ListingInfo(info)
@@ -70,9 +76,12 @@ def getInfo(listing):
     # TODO: pictures
     pictureURLs = []
     pictureSlides = listing.find(class_ = "slides")
-    pictures = pictureSlides.find_all('img')
-    for picture in pictures:
-        pictureURLs.append(picture['src'])
+    if pictureSlides != None:
+        pictures = pictureSlides.find_all('img')
+        for picture in pictures:
+            pictureURLs.append(picture['src'])
+    else:
+        pictureURLs = "No Pictures Found"        
     
     # TODO: url
 
@@ -100,35 +109,39 @@ def getInfo(listing):
 
     agentTable = listing.find_all('table', attrs={'class':'pd-table table-striped'})
     if len(agentTable) > 0:
-        agentBody = agentTable[0].find('tbody')
+        try:
+            agentBody = agentTable[0].find('tbody')
 
-        rows = agentBody.find_all('tr')
-        cols = rows[0].find_all('td')
-        agentName = cols[1].text.strip()
+            rows = agentBody.find_all('tr')
+            cols = rows[0].find_all('td')
+            agentName = cols[1].text.strip()
 
-        cols = rows[1].find_all('td')
-        agentLicNum = cols[1].text.strip()
+            cols = rows[1].find_all('td')
+            agentLicNum = cols[1].text.strip()
 
-        cols = rows[2].find_all('td')
-        agentPhoneNum = cols[1].text.strip()
+            cols = rows[2].find_all('td')
+            agentPhoneNum = cols[1].text.strip()
 
-        cols = rows[3].find_all('td')
-        agentBrokerage = cols[1].text.strip()
+            cols = rows[3].find_all('td')
+            agentBrokerage = cols[1].text.strip()
 
-        cols = rows[4].find_all('td')
-        agentBrokerageLic = cols[1].text.strip()
+            cols = rows[4].find_all('td')
+            agentBrokerageLic = cols[1].text.strip()
 
-        cols = rows[5].find_all('td')
-        agentManagingBroker = cols[1].text.strip()
+            cols = rows[5].find_all('td')
+            agentManagingBroker = cols[1].text.strip()
 
-        cols = rows[6].find_all('td')
-        agentManagingBrokerLic = cols[1].text.strip()
+            cols = rows[6].find_all('td')
+            agentManagingBrokerLic = cols[1].text.strip()
+        except:
+            print("End of agent info: length - " + str(len(agentTable)))
 
         agentEmail = listing.find(class_="xmicon icon-email").get_text()
 
     eventName = listing.find(id = "eventName")
 
     #TODO: event detials - could be the same as start time
+    eventDetails = "Coming Soon.."
 
     propertyDetials = listing.find(class_ = "property-content").get_text().replace('\n', '')
 
@@ -255,18 +268,19 @@ def getInfo(listing):
         avgMedianRent = cols[1].text.strip()
 
         cols = rows[2].find_all('td')
-        avgLowRent = cols[1].text.strip()         
-    with open('properties.csv', 'w') as csv_file:
-        csv_writer.writerow([address, city, zip, state, strtBid, 
-            reservemet, listingInfoObj.propId, listingInfoObj.propType, 
-            listingInfoObj.county, listingInfoObj.lotSize, listingInfoObj.yearBuilt,
-            listingInfoObj.mlsNum, listingInfoObj.beds, listingInfoObj.baths,
-            listingInfoObj.sqFt, listingInfoObj.stories, pictureURLs, strtTime, 
-            payType, agentName, agentLicNum, agentPhoneNum, 
-            agentBrokerage, agentBrokerageLic, agentManagingBroker, 
-            agentManagingBrokerLic, propertyDetials, auctionDisclaimers, priceHistory,
-            taxHistory, medianListPrice, medianSoldPrice, daysOnMarket, salesListPrice, 
-            avgHighRent, avgLowRent, avgMedianRent])
+        avgLowRent = cols[1].text.strip()
+
+    csv_writer.writerow([address, city, zip, state, strtBid, 
+        reserveMet, reservePrice, listingInfoObj.propId, listingInfoObj.propType, listingInfoObj.county,
+        listingInfoObj.lotSize, listingInfoObj.yearBuilt, listingInfoObj.mlsNum, listingInfoObj.beds, listingInfoObj.baths,
+        listingInfoObj.sqFt, listingInfoObj.stories, pictureURLs, url, strtTime, 
+        payType, agentName, agentLicNum, agentPhoneNum, agentBrokerage,
+        agentBrokerageLic, agentManagingBroker, agentManagingBrokerLic, eventName, eventDetails,
+        propertyDetials, auctionDisclaimers, priceHistory, taxHistory, medianListPrice,
+        medianSoldPrice, daysOnMarket, salesListPrice, avgHighRent, avgLowRent,
+        avgMedianRent])
+
+    print("Added a new property")
 
 ####################################################
 
@@ -311,12 +325,12 @@ resp = session.get("https://www.xome.com/auctions/bank-owned")
 resp.html.render(timeout=480)
 
 homePage = BeautifulSoup(resp.html.html, 'html.parser')
-time.sleep(1)
+time.sleep(5)
 pg = 1
 totalPgs = float(homePage.find(class_ = "results-counter-number").get_text().replace(',', '')) / 20 + 1
 listing_links = []
 browser = webdriver.Chrome()
-while(pg < totalPgs):
+while(pg < 2):
     browser.get("https://www.xome.com/auctions/bank-owned?page=" + str(pg))
     time.sleep(2)
     listings = browser.find_elements_by_xpath("//a[@class='property-detail-link']")
@@ -332,52 +346,53 @@ while(pg < totalPgs):
 with open('properties.csv', 'w') as csv_file:
     csv_writer = writer(csv_file)
     headers = ['Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
-        'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
+        'Reserve Met', 'Reserve Price', 'Property Id', 'Property Type', 'County',
         'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
         'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
         'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
         'Managing Broker Name', 'Managing Broker License', 'Event Name',
-        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
+        'Event Details', 'Property Details', 'Auction Disclaimers',
         'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
         'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent']
     csv_writer.writerow(headers)
-                
-for listing in listing_links:
-    # Use the object above to connect to needed webpage
-    resp = session.get(listing)
-    # Run JavaScript code on webpage
-    resp.html.render(timeout=480)
-    listingSoup = BeautifulSoup(resp.html.html, 'html.parser')
 
-    getInfo(listingSoup)
+    count = 0
+    for listing in listing_links:
+        session = HTMLSession()
+        # Use the object above to connect to needed webpage
+        print("Connecting to listing")
+        resp = session.get(listing)
+        # Run JavaScript code on webpage
+        print("Rendering")
+        resp.html.render(timeout=10)
+        listingSoup = BeautifulSoup(resp.html.html, 'html.parser')
+        print("Processing a new property")
+        getInfo(listingSoup, csv_writer, listing)
+        if (count > 1):
+            break
+        count += 1
 
-# Tansfer to SQL db
-# con = sqlite3.connect("PropertyData.db")
-# cur = con.cursor()
-# cur.execute("CREATE TABLE IF NOT EXISTS Properties ('Address', 'City', 'Zip Code', 'State', 'Starting Bid', 
-#        'Reserve Met', 'Resreve Price', 'Property Id', 'Property Type', 'County',
-#        'Lot Size', 'Year Built', 'MLS#', 'Bedrooms', 'Bathrooms', 'Square Feet', 'Stories', 'Pictures',
-#        'URL', 'Auction Start Time', 'Payment Type', 'Listing Agent Name', 'Listing Agent License Number',
-#        'Listing Agent Phone Number', 'Listing Agent Brokerage', 'Listing Agent Brokerage License',
-#        'Managing Broker Name', 'Managing Broker License', 'Event Name',
-#        'Event Details', 'Property Details', 'Listing Information', 'Auction Disclaimers',
-#        'Price History', 'Tax History', 'Medan List Price', 'Median Sold Price', 'Days On Market',
-#        'Sales List Price', 'Average High Rent', 'Average Median Rent', 'Average Low Rent');") # use your column names here
+#Tansfer to SQL db
+con = sqlite3.connect("PropertyData.db")
+cur = con.cursor()
+cur.execute("DROP TABLE Properties")
+cur.execute("CREATE TABLE IF NOT EXISTS Properties ('Address', 'City', 'Zip_Code', 'State', 'Starting_Bid', 'Reserve_Met', 'Reserve_Price', 'Property_Id', 'Property_Type', 'County', 'Lot_Size', 'Year_Built', 'MLS_Number', 'Bedrooms', 'Bathrooms', 'Square_Feet', 'Stories', 'Pictures', 'URL', 'Auction_Start_Time', 'Payment_Type', 'Listing_Agent_Name', 'Listing_Agent_License_Number', 'Listing_Agent_Phone_Number', 'Listing_Agent_Brokerage', 'Listing_Agent_Brokerage_License_Number', 'Managing_Broker_Name', 'Managing_Broker_License', 'Event_Name', 'Event_Details', 'Property_Details', 'Auction_Disclaimers', 'Price_History', 'Tax_History', 'Median_List_Price', 'Median_Sold_Price', 'Days_On_Market','Sales_List_Price', 'Average_High_Rent', 'Average_Median_Rent', 'Average_Low_Rent');") 
+       # use your column names here
 
-# with open('properties.csv','rt') as fin: # `with` statement available in 2.5+
-#     # csv.DictReader uses first line in file for column headings by default
-#     dr = csv.DictReader(fin) # comma is default delimiter
-#     to_db = [(i['Address'], i['City'], i['Zip Code'], i['State'], i['Starting Bid'], 
-#        i['Reserve Met'], i['Resreve Price'], i['Property Id'], i['Property Type'], i['County'],
-#        i['Lot Size'], i['Year Built'], i['MLS#'], i['Bedrooms'], i['Bathrooms'], i['Square Feet'],
-#        i['Stories'], i['Pictures'], i['URL'], i['Auction Start Time'], i['Payment Type'],
-#        i['Listing Agent Name'], i['Listing Agent License Number'], i['Listing Agent Phone Number'],
-#        i['Listing Agent Brokerage'], i['Listing Agent Brokerage License'], i['Managing Broker Name'],
-#        i['Managing Broker License'], i['Event Name'], i['Event Details'], i['Property Details'], 
-#        i['Listing Information'], i['Auction Disclaimers'], i['Price History'], i['Tax History'],
-#        i['Medan List Price'], i['Median Sold Price'], i['Days On Market'],i['Sales List Price'],
-#        i['Average High Rent'], i['Average Median Rent'], i['Average Low Rent']) for i in dr]
+with open('properties.csv','rt') as fin: # `with` statement available in 2.5+
+    # csv.DictReader uses first line in file for column headings by default
+    dr = csv.DictReader(fin) # comma is default delimiter
+    to_db = [(i['Address'], i['City'], i['Zip Code'], i['State'], i['Starting Bid'], 
+       i['Reserve Met'], i['Reserve Price'], i['Property Id'], i['Property Type'], i['County'],
+       i['Lot Size'], i['Year Built'], i['MLS#'], i['Bedrooms'], i['Bathrooms'], i['Square Feet'],
+       i['Stories'], i['Pictures'], i['URL'], i['Auction Start Time'], i['Payment Type'],
+       i['Listing Agent Name'], i['Listing Agent License Number'], i['Listing Agent Phone Number'],
+       i['Listing Agent Brokerage'], i['Listing Agent Brokerage License'], i['Managing Broker Name'],
+       i['Managing Broker License'], i['Event Name'], i['Event Details'], i['Property Details'], 
+       i['Auction Disclaimers'], i['Price History'], i['Tax History'],
+       i['Medan List Price'], i['Median Sold Price'], i['Days On Market'],i['Sales List Price'],
+       i['Average High Rent'], i['Average Median Rent'], i['Average Low Rent']) for i in dr]
 
-# cur.executemany("INSERT INTO Properties (Address, Price) VALUES (?, ?);", to_db)
-# con.commit()
-# con.close()
+cur.executemany("INSERT INTO Properties (Address, City, Zip_Code, State, Starting_Bid, Reserve_Met, Reserve_Price, Property_Id, Property_Type, County, Lot_Size, Year_Built, MLS_Number, Bedrooms, Bathrooms, Square_Feet, Stories, Pictures, URL, Auction_Start_Time, Payment_Type, Listing_Agent_Name, Listing_Agent_License_Number, Listing_Agent_Phone_Number, Listing_Agent_Brokerage, Listing_Agent_Brokerage_License_Number, Managing_Broker_Name, Managing_Broker_License, Event_Name, Event_Details, Property_Details, Auction_Disclaimers, Price_History, Tax_History, Median_List_Price, Median_Sold_Price, Days_On_Market, Sales_List_Price, Average_High_Rent, Average_Median_Rent, Average_Low_Rent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?);", to_db)
+con.commit()
+con.close()
